@@ -1,5 +1,5 @@
 /* Offline support: network first (so updates arrive), cache as fallback. */
-const CACHE = 'bw-studio-v10';
+const CACHE = 'bw-studio-v11';
 const FILES = ['./', 'index.html', 'css/app.css', 'manifest.webmanifest', 'icon.svg', 'icon-180.png',
   'js/core.js', 'js/audio.js', 'js/input.js', 'js/score.js', 'js/roll.js', 'js/trainer.js', 'js/i18n.js', 'js/ear.js', 'js/ui.js',
   'data/patterns.js', 'data/licks-1.js', 'data/licks-2.js', 'data/licks-3.js', 'data/licks-4.js', 'data/licks-5.js', 'data/licks-6.js', 'data/licks-7.js', 'data/course.js', 'data/articles.js',

@@ -43,7 +43,11 @@ window.BW = window.BW || {};
             names.push(inp.name || 'MIDI');
             inp.onmidimessage = function (e) {
               var d = e.data; if (!d || d.length < 2) return;
-              input.midiMessage(d[0], d[1], d.length > 2 ? d[2] : 0, e.timeStamp || performance.now());
+              // Some iOS MIDI browsers deliver timeStamp on another clock (or 0): only trust it
+              // when it is close to performance.now(), otherwise timing would be judged wrongly.
+              var now = performance.now(), ts = e.timeStamp;
+              if (!(ts > 0) || Math.abs(now - ts) > 250) ts = now;
+              input.midiMessage(d[0], d[1], d.length > 2 ? d[2] : 0, ts);
             };
           });
           setStatus(names.length ? 'connected' : 'none', names);
