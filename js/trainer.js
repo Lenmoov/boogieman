@@ -249,6 +249,7 @@ window.BW = window.BW || {};
     if (this._t0) { BW.addTime((Date.now() - this._t0) / 1000); this._t0 = 0; }
     this.running = null;
     if (BW.audio.ready) BW.audio.stopAll();
+    if (BW.midiOut) BW.midiOut.allOff();
     if (this.roll) this.roll.next = {};
     if (this.score) this.score.setCursor(null);
     this.disp = this.loop.from;
@@ -269,7 +270,11 @@ window.BW = window.BW || {};
       var t = (it.grace ? tm - it.grace * Math.min(0.055, spu * 1.1) : tm) + (Math.random() - 0.4) * 0.009;
       var vel = BW.clamp((it.grace ? it.vel * 0.8 : it.vel) + (Math.random() - 0.5) * 0.09, 0.15, 1);
       var len = it.d <= 2 ? it.d * spu * 0.8 : it.d * spu * 0.96;
-      a.playNote(it.midi, Math.max(t, now), it.grace ? 0.09 : Math.max(0.07, len), vel);
+      if (BW.midiOut && BW.midiOut.active() && !this.cfg.plain) {
+        // played on the user's own keyboard; shifted so it lines up with the band as heard
+        var at = performance.now() + (Math.max(t, now) - now) * 1000 + (BW.settings.midiOutShiftMs || 0);
+        BW.midiOut.note(it.midi, vel, at, (it.grace ? 0.09 : Math.max(0.07, len)) * 1000);
+      } else a.playNote(it.midi, Math.max(t, now), it.grace ? 0.09 : Math.max(0.07, len), vel);
     } else if (it.type === 'drum') {
       var click = it.drum === 'click' || it.drum === 'clickHi';
       a.drum(it.drum, Math.max(tm + (click ? 0 : (Math.random() - 0.5) * 0.007), now), click ? it.vel : BW.clamp(it.vel + (Math.random() - 0.5) * 0.1, 0.1, 1));

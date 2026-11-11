@@ -83,6 +83,15 @@ vertraging op. Dezelfde knop staat in het mengpaneel van het oefenscherm, en ver
 resultaat dat duidelijk te laat of fout is. Gebruik je het geluid van je eigen keyboard, zet dan
 "Laat mijn spel horen" uit; anders klinkt de iPad of telefoon dubbel en iets na.
 
+## MIDI-uit: de app speelt op je keyboard
+
+Onder **MIDI → MIDI-uit** kies je de uitgang (meestal hetzelfde keyboard) en tik je op **Test** om te
+horen of het werkt. Zet je **Voorspelen op mijn keyboard** aan, dan klinkt de pianopartij van de app
+(voorspelen en de hand die de app overneemt) op je eigen piano in plaats van uit de luidspreker; drums
+en bas blijven uit het apparaat komen. Klinkt het keyboard net voor of na de drums, verschuif dan
+**MIDI-uit timing**. Stuurt je keyboard alles wat het ontvangt weer terug (MIDI thru), dan negeert de
+app die echo's.
+
 ## Leermethode
 
 - **Eerst horen, dan spelen:** elke lick is op vol tempo te beluisteren voordat je begint.

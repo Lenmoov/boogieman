@@ -113,6 +113,14 @@ window.BW = window.BW || {};
     cPractise: ['Oefen deze module', 'Practise this module'], cNextModule: ['Volgende module', 'Next module'],
     calibrate: ['Timing meten (15 sec)', 'Measure timing (15 sec)'],
     calibrateHint: ['Veel te laat of fout? Meet de timing van dit apparaat', 'Lots late or wrong? Measure this device\'s timing'],
+    midiOut: ['MIDI-uit: de app speelt op je keyboard', 'MIDI out: the app plays your keyboard'],
+    midiOutSub: ['Het voorspelen en de hand die de app overneemt klinken dan op je eigen piano, zonder de vertraging van de luidspreker. Drums en bas blijven uit het apparaat komen.', 'The demo and the hand the app takes over then sound on your own piano, without the speaker delay. Drums and bass still come from the device.'],
+    midiOutNone: ['Geen MIDI-uitgang gevonden. Sluit het keyboard aan en tik bij MIDI op Opnieuw zoeken. Sommige MIDI-browsers op de iPad ondersteunen geen MIDI-uit.', 'No MIDI output found. Connect the keyboard and tap Search again under MIDI. Some MIDI browsers on the iPad do not support MIDI out.'],
+    midiOutPort: ['Uitgang', 'Output'], midiOutTest: ['Test: speel iets op mijn keyboard', 'Test: play something on my keyboard'],
+    midiOutSentMsg: ['Verstuurd: een loopje C-E-G-C, een geknepen terts en een C7-akkoord. Hoor je niets, dan komt MIDI-uit niet aan bij je keyboard.', 'Sent: a C-E-G-C run, a crushed third and a C7 chord. If you hear nothing, MIDI out does not reach your keyboard.'],
+    midiOutPlay: ['Voorspelen op mijn keyboard', 'Play the demo on my keyboard'],
+    midiOutPlaySub: ['De pianopartij van de app gaat via MIDI naar je keyboard in plaats van uit de luidspreker', 'The app\'s piano part goes to your keyboard via MIDI instead of the speaker'],
+    midiOutShift: ['MIDI-uit timing', 'MIDI out timing'], midiOutShiftSub: ['Klinkt het keyboard vóór de drums, schuif dan naar rechts; erna, naar links', 'If the keyboard sounds before the drums, move right; after them, move left'],
     example: ['Voorbeeld', 'Example'], exercise: ['Oefening', 'Exercise']
   };
   BW.t = function (k) {

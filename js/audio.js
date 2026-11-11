@@ -240,11 +240,22 @@ window.BW = window.BW || {};
     }
     return out;
   }
+  /* MP3 files start with a few ms (in some browsers tens of ms) of encoder padding/silence.
+     Find where the sound really starts and play from there: every note sounds that much sooner. */
+  function onsetOf(b) {
+    try {
+      var d = b.getChannelData(0), sr = b.sampleRate, n = Math.min(d.length, Math.floor(sr * 0.25)), pk = 0, i;
+      for (i = 0; i < n; i++) { var a = d[i] < 0 ? -d[i] : d[i]; if (a > pk) pk = a; }
+      var th = Math.max(0.002, pk * 0.02);
+      for (i = 0; i < n; i++) if ((d[i] < 0 ? -d[i] : d[i]) >= th) break;
+      return Math.max(0, i / sr - 0.0015);       // keep 1.5 ms so the attack stays intact
+    } catch (e) { return 0; }
+  }
   function decode(buf) {
     return new Promise(function (res, rej) {
       var p = ctx.decodeAudioData(buf, res, rej);
       if (p && p.then) p.then(res, rej);
-    });
+    }).then(function (b) { b._on = onsetOf(b); return b; });
   }
   function loadSamples() {
     if (sampleState !== 'idle' || !window.fetch) return;
@@ -277,14 +288,14 @@ window.BW = window.BW || {};
   function drumSample(type, t, vel) {
     var k = KIT_MAP[type], buf = k && kit[k[0]];
     if (!buf) return false;
-    var v = mkVoice('drums', t, t + buf.duration, k[1] * Math.pow(vel, 1.3));
+    var on = buf._on || 0, v = mkVoice('drums', t, t + buf.duration - on, k[1] * Math.pow(vel, 1.3));
     var src = node(v, ctx.createBufferSource()); src.buffer = buf;
     src.playbackRate.value = 1 + (Math.random() - 0.5) * 0.03;      // no two hits exactly alike
     if (type === 'hat') {             // tighter hat for the off-beats
       var e = gainN(v, 1); e.gain.setValueAtTime(1, t); e.gain.setTargetAtTime(0, t + 0.03, 0.05);
       src.connect(e); e.connect(v.out);
     } else src.connect(v.out);
-    src.start(t); src.stop(v.end); src._end = v.end; v.srcs.push(src);
+    src.start(t, on); src.stop(v.end); src._end = v.end; v.srcs.push(src);
     commit(v, src);
     return true;
   }
@@ -302,7 +313,7 @@ window.BW = window.BW || {};
     src.connect(lp); lp.connect(e); e.connect(v.out);
     v.out.gain.setValueAtTime(lvl, tr); v.out.gain.setTargetAtTime(0, tr, 0.055);
     v.valAt = function (x) { return x < tr ? lvl : lvl * Math.exp(-(x - tr) / 0.055); };
-    src.start(t); src.stop(end); src._end = end; v.srcs.push(src);
+    src.start(t, buf._on || 0); src.stop(end); src._end = end; v.srcs.push(src);
     commit(v, src);
     return true;
   }
@@ -321,7 +332,7 @@ window.BW = window.BW || {};
     var f = mtof(m), b = clamp(Math.floor((m - 24) / 12), 0, 7);
     var P = 1.7 * Math.pow(Math.max(vel, 0.03), 1.6) + 0.03;
     var relTau = m >= 89 ? 0.3 : 0.07 + 0.05 * clamp((60 - m) / 36, 0, 1);   // dampers: bass rings a little longer
-    var natEnd = t + buf.duration / rate - 0.02;
+    var on = buf._on || 0, natEnd = t + (buf.duration - on) / rate - 0.02;
     var tr = dur == null ? Infinity : t + dur;
     var v = { bus: bus, t0: t, end: Math.min(natEnd, tr + relTau * 7), srcs: [], nodes: [], piano: true, m: m, relTau: relTau };
     v.valAt = function (x) { var r = v.rel; return r && x >= r.t ? r.v0 * Math.exp(-(x - r.t) / r.tau) : P; };
@@ -334,7 +345,7 @@ window.BW = window.BW || {};
       v.rel = { t: tr, tau: relTau, v0: P };
       amp.gain.setValueAtTime(P, tr); amp.gain.setTargetAtTime(0, tr, relTau);
     }
-    src.start(t); src.stop(v.end); src._end = v.end; v.srcs.push(src);
+    src.start(t, on); src.stop(v.end); src._end = v.end; v.srcs.push(src);
     return commit(v, src);
   }
   function pianoVoice(m, t, dur, vel, bus) {

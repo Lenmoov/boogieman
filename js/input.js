@@ -29,6 +29,8 @@ window.BW = window.BW || {};
     /* raw MIDI bytes; also the entry point for a future native (CoreMIDI) bridge */
     midiMessage: function (status, d1, d2, timeMs) {
       var cmd = status & 0xf0;
+      // keyboards with MIDI thru/echo send our own output straight back: ignore those
+      if ((cmd === 0x90 || cmd === 0x80) && BW.midiOut && BW.midiOut.isEcho(d1, cmd === 0x90 && d2 > 0)) return;
       if (cmd === 0x90 && d2 > 0) input.noteOn(d1, Math.pow(d2 / 127, 0.8), 'midi', timeMs);
       else if (cmd === 0x80 || (cmd === 0x90 && d2 === 0)) input.noteOff(d1, 'midi');
     },
@@ -50,6 +52,9 @@ window.BW = window.BW || {};
               input.midiMessage(d[0], d[1], d.length > 2 ? d[2] : 0, ts);
             };
           });
+          var outs = [];
+          access.outputs.forEach(function (o) { outs.push({ id: o.id, name: o.name || 'MIDI', port: o }); });
+          out.ports = outs;
           setStatus(names.length ? 'connected' : 'none', names);
         }
         access.onstatechange = hook;
@@ -58,6 +63,57 @@ window.BW = window.BW || {};
     },
     retry: function () { input.init(); }
   };
+  /* ---------- MIDI out: let the app play on the user's own keyboard ---------- */
+  var queue = [], qTimer = null, sounding = {}, sent = {};
+  var out = BW.midiOut = {
+    ports: [],
+    port: function () {
+      var id = BW.settings.midiOutId, ps = out.ports;
+      if (!ps.length) return null;
+      for (var i = 0; i < ps.length; i++) if (ps[i].id === id) return ps[i].port;
+      return ps[0].port;                         // default: the first output (usually the same keyboard)
+    },
+    active: function () { return !!(BW.settings.midiOutPlay && out.port()); },
+    raw: function (bytes) { var p = out.port(); if (!p) return false; try { p.send(bytes); return true; } catch (e) { return false; } },
+    /* schedule a note at performance.now()-time onMs for durMs; dispatched by our own timer so it
+       works even where send(data, timestamp) is not honoured */
+    note: function (midi, vel, onMs, durMs) {
+      queue.push({ at: onMs, b: [0x90, midi, BW.clamp(Math.round(vel * 127), 1, 127)], m: midi, on: true });
+      queue.push({ at: onMs + Math.max(30, durMs), b: [0x80, midi, 0], m: midi, on: false });
+      if (!qTimer) qTimer = setInterval(pump, 4);
+      pump();
+    },
+    allOff: function () {
+      queue = []; if (qTimer) { clearInterval(qTimer); qTimer = null; }
+      Object.keys(sounding).forEach(function (m) { out.raw([0x80, +m, 0]); });
+      sounding = {};
+      out.raw([0xB0, 123, 0]);                   // all notes off (channel 1)
+    },
+    isEcho: function (midi, isOn) {
+      var t = sent[midi + (isOn ? 'on' : 'off')];
+      return t != null && performance.now() - t < 60;
+    },
+    test: function () {                         // C-E-G-C up, crushed third, C7 chord
+      var t = performance.now() + 60, seq = [[60, 0], [64, 180], [67, 360], [72, 540], [63, 760], [64, 790], [55, 1000], [60, 1000], [64, 1000], [70, 1000]];
+      seq.forEach(function (x) { out.note(x[0], 0.75, t + x[1], x[1] >= 1000 ? 900 : (x[0] === 63 ? 30 : 170)); });
+      return !!out.port();
+    }
+  };
+  function pump() {
+    var now = performance.now(), keep = [];
+    queue.sort(function (a, b) { return a.at - b.at; });
+    for (var i = 0; i < queue.length; i++) {
+      var q = queue[i];
+      if (q.at > now) { keep = queue.slice(i); break; }
+      if (q.on) { if (sounding[q.m]) out.raw([0x80, q.m, 0]); sounding[q.m] = 1; }
+      else { if (!sounding[q.m]) continue; delete sounding[q.m]; }
+      sent[q.m + (q.on ? 'on' : 'off')] = performance.now();
+      out.raw(q.b);
+    }
+    queue = keep;
+    if (!queue.length && qTimer) { clearInterval(qTimer); qTimer = null; }
+  }
+
   function setStatus(state, names) {
     input.status = { state: state, names: names };
     statusListeners.forEach(function (f) { f(input.status); });

@@ -549,6 +549,27 @@
     if (s.state === 'unsupported') return t('midiUnsupported');
     return '…';
   }
+  function midiOutCard() {
+    var ports = (BW.midiOut && BW.midiOut.ports) || [];
+    var msg = el('div', { class: 'note', style: 'margin-top:8px' });
+    var kids = [el('h3', { text: t('midiOut') }), el('div', { class: 'note', text: t('midiOutSub') })];
+    if (!ports.length) {
+      kids.push(el('div', { class: 'note warn-text', text: t('midiOutNone') }));
+    } else {
+      var sel = el('select', { class: 'sel' });
+      ports.forEach(function (o) { sel.appendChild(el('option', { value: o.id, text: o.name })); });
+      sel.value = BW.midiOut.port() ? (ports.filter(function (o) { return o.port === BW.midiOut.port(); })[0] || ports[0]).id : ports[0].id;
+      sel.addEventListener('change', function () { setS('midiOutId', sel.value); });
+      kids.push(opt(t('midiOutPort'), null, sel));
+      kids.push(el('div', { style: 'margin-top:10px' }, [el('button', { class: 'btn small primary', text: '♪ ' + t('midiOutTest'), onclick: function () {
+        msg.textContent = BW.midiOut.test() ? t('midiOutSentMsg') : t('midiOutNone');
+      } })]));
+      kids.push(msg);
+      kids.push(opt(t('midiOutPlay'), t('midiOutPlaySub'), switchEl(!!BW.settings.midiOutPlay, function (v) { setS('midiOutPlay', v); })));
+      kids.push(opt(t('midiOutShift'), t('midiOutShiftSub'), range('midiOutShiftMs', -200, 400, 5, null, function (v) { return v + ' ms'; })));
+    }
+    return el('div', { class: 'card' }, kids);
+  }
   function settingsView() {
     var midiNote = el('div', { class: 'note', text: midiText() });
     shell('settings', [
@@ -561,6 +582,7 @@
           opt(t('userSound'), t('userSoundSub'), switchEl(BW.settings.userSound, function (v) { setS('userSound', v); })),
           opt(t('latency'), t('latencySub'), range('latencyMs', -100, 400, 5, null, function (v) { return v + ' ms'; })),
           el('div', { style: 'margin-top:12px' }, [el('button', { class: 'btn small primary', text: t('calibrate'), onclick: function () { BW.calibrate(function () { setTimeout(settingsView, 1500); }); } })])]),
+        midiOutCard(),
         el('div', { class: 'card' }, [el('h3', { text: t('ladder') })].concat(ladderOptions())),
         el('div', { class: 'card' }, [el('h3', { text: t('data') }),
           el('button', { class: 'btn small', text: t('reset'), onclick: function () { if (confirm(t('resetConfirm'))) { BW.progress = {}; BW.store.set('progress', {}); BW.store.set('streak', { day: '', count: 0 }); BW.store.set('last', null); toast('OK'); } } })]),
@@ -791,6 +813,7 @@
         opt(t('click'), null, switchEl(S.click, function (v) { setS('click', v); mix(); })),
         opt(t('otherHand'), null, switchEl(S.otherHand !== false, function (v) { setS('otherHand', v); mix(); })),
         opt(t('userSound'), t('userSoundSub'), switchEl(S.userSound, function (v) { setS('userSound', v); })),
+        BW.midiOut && BW.midiOut.ports.length ? opt(t('midiOutPlay'), t('midiOutPlaySub'), switchEl(!!S.midiOutPlay, function (v) { setS('midiOutPlay', v); trainer.stop(); })) : null,
         opt(t('fingers'), null, switchEl(S.fingers, function (v) { setS('fingers', v); renderScore(); })),
         opt(t('volPiano'), null, range('volPiano', 0, 1, 0.05, mix)),
         opt(t('volDrums'), null, range('volDrums', 0, 1, 0.05, mix)),
