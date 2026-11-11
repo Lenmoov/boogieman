@@ -124,7 +124,7 @@ window.BW = window.BW || {};
     midiOutErr: ['Fout bij versturen:', 'Error while sending:'],
     midiOutInfo: ['Uitgangen:', 'Outputs:'], midiOutInfoIn: ['ingangen:', 'inputs:'],
     midiOutPolySub: ['Tussenruimte: de app stuurt elk MIDI-bericht apart, een paar milliseconden na elkaar, omdat sommige MIDI-browsers berichten kwijtraken die tegelijk komen. De test speelt een vastgehouden akkoord, acht korte herhaalde akkoorden en een snel herhaalde noot. Alles moet klinken en netjes stoppen; zo niet, kies een grotere tussenruimte.', 'Spacing: the app sends every MIDI message separately, a few milliseconds apart, because some MIDI browsers lose messages that arrive together. The test plays a held chord, eight short repeated chords and a fast repeated note. Everything must sound and stop cleanly; if not, choose a larger spacing.'],
-    midiOutPolyTest: ['Akkoordtest', 'Chord test'],
+    midiOutPolyTest: ['Akkoordtest', 'Chord test'], midiPanic: ['Alle noten uit', 'All notes off'], midiPanicDone: ['Noot-uit verstuurd voor alle 88 toetsen.', 'Note-off sent for all 88 keys.'],
     midiOutPoly_chord: ['Vastgehouden akkoord C-E-G-Bes-C…', 'Held chord C-E-G-Bb-C…'], midiOutPoly_stabs: ['Acht korte akkoorden…', 'Eight short chords…'], midiOutPoly_repeat: ['Snel herhaalde C…', 'Fast repeated C…'],
     midiOutPolyAsk: ['Klonk alles en stopte elke noot netjes? Zo niet: kies 10 ms en test opnieuw. Klopt het, probeer dan 2 ms voor strakkere akkoorden.', 'Did everything sound and did every note stop cleanly? If not: choose 10 ms and test again. If it did, try 2 ms for tighter chords.'],
     midiOutPlay: ['Voorspelen op mijn keyboard', 'Play the demo on my keyboard'],

@@ -584,7 +584,8 @@
           el('button', { class: 'btn small', text: t('midiOutPolyTest'), onclick: function () {
             BW.midiOut.chordTest(function (k) { polyMsg.textContent = k ? t('midiOutPoly_' + k) : t('midiOutPolyAsk'); });
           } }),
-          segEl([[2, '2 ms'], [5, '5 ms'], [10, '10 ms']], [2, 5, 10].indexOf(+BW.settings.midiOutGap) >= 0 ? +BW.settings.midiOutGap : 5, function (v) { setS('midiOutGap', v); })
+          segEl([[2, '2 ms'], [5, '5 ms'], [10, '10 ms'], [20, '20 ms']], [2, 5, 10, 20].indexOf(+BW.settings.midiOutGap) >= 0 ? +BW.settings.midiOutGap : 5, function (v) { setS('midiOutGap', v); }),
+          el('button', { class: 'btn small', text: '■ ' + t('midiPanic'), onclick: function () { BW.midiOut.panic(); polyMsg.textContent = t('midiPanicDone'); } })
         ]), polyMsg]));
       var inf = BW.midiOut.info();
       kids.push(el('div', { class: 'note', style: 'margin-top:8px;font-size:12px', text: t('midiOutInfo') + ' ' + inf.outputs.join(', ') + ' · ' + t('midiOutInfoIn') + ' ' + (inf.inputs.join(', ') || '–') + ' · ' + t('midiOutCh') + ' ' + inf.inChannel }));
@@ -837,6 +838,7 @@
         opt(t('otherHand'), null, switchEl(S.otherHand !== false, function (v) { setS('otherHand', v); mix(); })),
         opt(t('userSound'), t('userSoundSub'), switchEl(S.userSound, function (v) { setS('userSound', v); })),
         BW.midiOut && BW.midiOut.ports.length ? opt(t('midiOutPlay'), t('midiOutPlaySub'), switchEl(!!S.midiOutPlay, function (v) { setS('midiOutPlay', v); trainer.stop(); })) : null,
+        BW.midiOut && BW.midiOut.ports.length ? el('button', { class: 'btn small', style: 'margin:4px 0 8px', text: '■ ' + t('midiPanic'), onclick: function () { trainer.stop(); BW.midiOut.panic(); toast(t('midiPanicDone')); } }) : null,
         opt(t('fingers'), null, switchEl(S.fingers, function (v) { setS('fingers', v); renderScore(); })),
         opt(t('volPiano'), null, range('volPiano', 0, 1, 0.05, mix)),
         opt(t('volDrums'), null, range('volDrums', 0, 1, 0.05, mix)),

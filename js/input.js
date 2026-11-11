@@ -71,9 +71,14 @@ window.BW = window.BW || {};
      - messages sent in the same instant can get lost: every send() is paced a few ms apart
      - a note-off may only end the note-on it belongs to (tokens), otherwise a repeated note that
        overlaps its predecessor gets cut off by the predecessor's late note-off
-     - note-off is written the way the keyboard itself writes it (9n vel 0 or 8n), default 9n vel 0
+     - note-off is always a real Note Off (8n, velocity 64): every receiver must understand it, and it
+       does not depend on a bridge passing a zero byte through correctly
+     - every note-off is repeated twice shortly after (unless the key was struck again), so one
+       lost or late message cannot leave a note hanging; a duplicate note-off is harmless in MIDI
+     - on stop, every key that was played gets a note-off plus All Notes Off (CC 123)
      - note-ons go out before plain note-offs that are due at the same moment, so chords stay tight */
-  var events = [], evTimer = null, outbox = [], lowbox = [], pacing = false, lastSend = 0, sounding = {}, sent = {}, tok = 0;
+  var events = [], evTimer = null, outbox = [], lowbox = [], pacing = false, lastSend = 0, sounding = {}, sent = {}, tok = 0, lastTok = {}, used = {};
+  var SAFETY_MS = 70, MIN_NOTE_MS = 60;
   var mc = window.MessageChannel ? new MessageChannel() : null;
   function gapMs() { var g = +BW.settings.midiOutGap; return g >= 0 && g <= 20 ? g : 5; }
   function kick() {
@@ -102,7 +107,7 @@ window.BW = window.BW || {};
     if (c === 0x90 || c === 0x80) sent[bytes[1] + ((c === 0x90 && bytes[2] > 0) ? 'on' : 'off')] = performance.now();
   }
   function msgOn(m, v) { return [0x90 | out.channel(), m, v]; }
-  function msgOff(m) { return offStyle === 0x80 ? [0x80 | out.channel(), m, 64] : [0x90 | out.channel(), m, 0]; }
+  function msgOff(m) { return [0x80 | out.channel(), m, 64]; }
   function enqueue(bytes, port, low) { (low ? lowbox : outbox).push({ b: bytes, port: port }); kick(); }
   function isOffFor(x, m) { var c = x.b[0] & 0xf0; return x.b[1] === m && (c === 0x80 || (c === 0x90 && x.b[2] === 0)); }
   function schedule() {
@@ -112,11 +117,15 @@ window.BW = window.BW || {};
       var e = events.shift();
       if (e.on) {
         if (sounding[e.m] != null) ons.push(msgOff(e.m));       // re-strike: end the old note first
-        sounding[e.m] = e.tok;
+        sounding[e.m] = e.tok; lastTok[e.m] = e.tok; used[e.m] = 1;
         ons.push(msgOn(e.m, e.v));
+      } else if (e.safety) {                                     // repeat the note-off unless the key was struck again
+        if (sounding[e.m] == null && lastTok[e.m] === e.tok) offs.push(msgOff(e.m));
       } else if (sounding[e.m] === e.tok) {                      // only end our own note
         delete sounding[e.m];
         offs.push(msgOff(e.m));
+        events.push({ at: now + SAFETY_MS, safety: true, m: e.m, tok: e.tok });
+        events.push({ at: now + SAFETY_MS * 4, safety: true, m: e.m, tok: e.tok });
       }
     }
     ons.forEach(function (b) {
@@ -154,7 +163,7 @@ window.BW = window.BW || {};
     note: function (midi, vel, onMs, durMs) {
       var k = ++tok;
       events.push({ at: onMs, on: true, m: midi, v: BW.clamp(Math.round(vel * 127), 1, 127), tok: k });
-      events.push({ at: onMs + Math.max(30, durMs), on: false, m: midi, tok: k });
+      events.push({ at: onMs + Math.max(MIN_NOTE_MS, durMs), on: false, m: midi, tok: k });
       if (!evTimer) evTimer = setInterval(schedule, 4);
       schedule();
     },
@@ -162,9 +171,22 @@ window.BW = window.BW || {};
       events = []; if (evTimer) { clearInterval(evTimer); evTimer = null; }
       outbox = outbox.filter(function (x) { var c = x.b[0] & 0xf0; return !(c === 0x90 && x.b[2] > 0); });   // drop pending note-ons
       outbox = outbox.concat(lowbox); lowbox = [];          // waiting note-offs must still go out
-      Object.keys(sounding).forEach(function (m) { enqueue(msgOff(+m)); });
-      sounding = {};
-      if (out.port()) enqueue([0xB0 | out.channel(), 64, 0]);    // sustain off (we never press it, but be safe)
+      if (!out.port()) { sounding = {}; used = {}; return; }
+      // every key played since the last stop gets a note-off (cheap, and catches any lost one)
+      Object.keys(used).forEach(function (m) { enqueue(msgOff(+m)); });
+      sounding = {}; used = {};
+      enqueue([0xB0 | out.channel(), 64, 0]);                // sustain off
+      enqueue([0xB0 | out.channel(), 123, 0]);               // All Notes Off
+    },
+    /* emergency: note-off for all 88 keys plus All Notes Off */
+    panic: function () {
+      events = []; outbox = []; lowbox = []; sounding = {}; used = {};
+      if (evTimer) { clearInterval(evTimer); evTimer = null; }
+      if (!out.port()) return false;
+      enqueue([0xB0 | out.channel(), 123, 0]);
+      enqueue([0xB0 | out.channel(), 64, 0]);
+      for (var m = 21; m <= 108; m++) enqueue(msgOff(m), null, true);
+      return true;
     },
     isEcho: function (midi, isOn) {
       var t = sent[midi + (isOn ? 'on' : 'off')];
@@ -199,14 +221,14 @@ window.BW = window.BW || {};
           [60, 64, 67].forEach(function (m, k) {
             chans.forEach(function (c, ci) {
               setTimeout(function () { enqueue([0x90 | c, m, 100], o.port); }, k * 220 + ci * 10);
-              setTimeout(function () { enqueue([0x90 | c, m, 0], o.port); }, k * 220 + 200 + ci * 10);
+              setTimeout(function () { enqueue([0x80 | c, m, 64], o.port); }, k * 220 + 200 + ci * 10);
             });
           });
         }, i * 1400);
       });
       return out.ports.length;
     },
-    info: function () { return { outputs: out.ports.map(function (o) { return o.name; }), inputs: input.status.names, inChannel: inChannel + 1, sendChannel: out.channel() + 1, offStyle: offStyle === 0x80 ? '8n' : '9n v0' }; }
+    info: function () { return { outputs: out.ports.map(function (o) { return o.name; }), inputs: input.status.names, inChannel: inChannel + 1, sendChannel: out.channel() + 1, keyboardOff: offStyle === 0x80 ? '8n' : '9n v0' }; }
   };
 
   function setStatus(state, names) {
