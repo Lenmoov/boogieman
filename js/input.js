@@ -78,7 +78,7 @@ window.BW = window.BW || {};
      - on stop, every key that was played gets a note-off plus All Notes Off (CC 123)
      - note-ons go out before plain note-offs that are due at the same moment, so chords stay tight */
   var events = [], evTimer = null, outbox = [], lowbox = [], pacing = false, lastSend = 0, sounding = {}, sent = {}, tok = 0, lastTok = {}, used = {};
-  var MIN_NOTE_MS = 60, LATE_MS = 80;
+  var MIN_NOTE_MS = 60, LATE_MS = 80, dropped = {};
   var mc = window.MessageChannel ? new MessageChannel() : null;
   function gapMs() { var g = +BW.settings.midiOutGap; return g >= 0 && g <= 20 ? g : 5; }
   function kick() {
@@ -92,7 +92,13 @@ window.BW = window.BW || {};
       var m = outbox.shift();
       // a note-on that has waited too long is skipped: better a missing note than a late one,
       // and the queue can never build up a growing delay
-      while (m && (m.b[0] & 0xf0) === 0x90 && m.b[2] > 0 && now - m.t > LATE_MS) m = outbox.shift();
+      // (the note-off that belongs to a skipped note-on is skipped too: no useless traffic)
+      for (;;) {
+        var c = m ? m.b[0] & 0xf0 : 0, k = m ? m.b[1] : 0;
+        if (c === 0x90 && m.b[2] > 0 && now - m.t > LATE_MS) { dropped[k] = (dropped[k] || 0) + 1; m = outbox.shift(); }
+        else if (c === 0x80 && dropped[k] > 0 && !m.keep) { dropped[k]--; m = outbox.shift(); }
+        else break;
+      }
       if (m) { sendNow(m.b, m.port); lastSend = performance.now(); wait = gapMs(); }
     }
     if (!outbox.length) { pacing = false; return; }
@@ -107,7 +113,7 @@ window.BW = window.BW || {};
   }
   function msgOn(m, v) { return [0x90 | out.channel(), m, v]; }
   function msgOff(m) { return [0x80 | out.channel(), m, 64]; }
-  function enqueue(bytes, port) { outbox.push({ b: bytes, port: port, t: performance.now() }); kick(); }   // one queue, strictly in order
+  function enqueue(bytes, port, keep) { outbox.push({ b: bytes, port: port, t: performance.now(), keep: keep }); kick(); }   // one queue, strictly in order
   function isOffFor(x, m) { var c = x.b[0] & 0xf0; return x.b[1] === m && (c === 0x80 || (c === 0x90 && x.b[2] === 0)); }
   function schedule() {
     var now = performance.now(), ons = [], offs = [];
@@ -125,16 +131,7 @@ window.BW = window.BW || {};
         offs.push(msgOff(e.m));                                  // one note-off per note: repeats tripled the traffic and clogged the queue
       }
     }
-    ons.forEach(function (b) {
-      // a plain note-off for this key still waiting in the slow lane must go out before the new note-on
-      var c = b[0] & 0xf0;
-      if (c === 0x90 && b[2] > 0 && lowbox.some(function (x) { return isOffFor(x, b[1]); })) {
-        lowbox = lowbox.filter(function (x) { return !isOffFor(x, b[1]); });
-        enqueue(msgOff(b[1]));
-      }
-      enqueue(b);
-    });
-    offs.forEach(function (b) { enqueue(b, null, true); });
+    ons.concat(offs).forEach(function (b) { enqueue(b); });
     if (!events.length && evTimer) { clearInterval(evTimer); evTimer = null; }
   }
   var out = BW.midiOut = {
@@ -170,7 +167,7 @@ window.BW = window.BW || {};
       outbox = outbox.concat(lowbox); lowbox = [];          // waiting note-offs must still go out
       if (!out.port()) { sounding = {}; used = {}; return; }
       // every key played since the last stop gets a note-off (cheap, and catches any lost one)
-      Object.keys(used).forEach(function (m) { enqueue(msgOff(+m)); });
+      Object.keys(used).forEach(function (m) { enqueue(msgOff(+m), null, true); });
       sounding = {}; used = {};
       enqueue([0xB0 | out.channel(), 64, 0]);                // sustain off
       enqueue([0xB0 | out.channel(), 123, 0]);               // All Notes Off
