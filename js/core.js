@@ -333,7 +333,7 @@ window.BW = window.BW || {};
     }
   };
   var DEFAULT_SETTINGS = {
-    lang: 'nl', view: 'both', fingers: true, userSound: true, latencyMs: 0, jitterMs: 0, midiOutId: '', midiOutPlay: false, midiOutShiftMs: 0, midiOutChannel: 0, midiOutMode: 'batch',
+    lang: 'nl', view: 'both', fingers: true, userSound: true, latencyMs: 0, jitterMs: 0, midiOutId: '', midiOutPlay: false, midiOutShiftMs: 0, midiOutChannel: 0, midiOutMode: 'spread',
     volPiano: 0.8, volDrums: 0.5, volBass: 0.5, volClick: 0.6,
     drums: true, bass: true, click: false, cleanNeeded: 2, startPct: 60, stepPct: 10
   };

@@ -584,7 +584,7 @@
           el('button', { class: 'btn small', text: t('midiOutPolyTest'), onclick: function () {
             BW.midiOut.chordTest(function (k) { polyMsg.textContent = k ? t('midiOutPolyNow') + ' ' + k : t('midiOutPolyAsk'); });
           } }),
-          segEl([['batch', 'A'], ['spread', 'B']], BW.settings.midiOutMode || 'batch', function (v) { setS('midiOutMode', v); })
+          segEl([['batch', 'A'], ['spread', 'B']], BW.settings.midiOutMode || 'spread', function (v) { setS('midiOutMode', v); })
         ]), polyMsg]));
       var inf = BW.midiOut.info();
       kids.push(el('div', { class: 'note', style: 'margin-top:8px;font-size:12px', text: t('midiOutInfo') + ' ' + inf.outputs.join(', ') + ' · ' + t('midiOutInfoIn') + ' ' + (inf.inputs.join(', ') || '–') + ' · ' + t('midiOutCh') + ' ' + inf.inChannel }));

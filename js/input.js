@@ -153,7 +153,7 @@ window.BW = window.BW || {};
        spread - one message per timer tick (about 4 ms apart), each in its own send() */
   function chan(b) { return (b[0] & 0xf0) === 0xf0 ? b : [(b[0] & 0xf0) | out.channel()].concat(b.slice(1)); }
   function pump(forceMode) {
-    var now = performance.now(), mode = forceMode || BW.settings.midiOutMode || 'batch', bytes = [], n = 0;
+    var now = performance.now(), mode = forceMode || BW.settings.midiOutMode || 'spread', bytes = [], n = 0;
     queue.sort(function (a, b) { return a.at - b.at || (a.on ? 1 : 0) - (b.on ? 1 : 0); });   // note-offs first
     while (queue.length && queue[0].at <= now) {
       var q = queue.shift(), msgs = [];
