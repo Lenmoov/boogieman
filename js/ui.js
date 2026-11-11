@@ -558,13 +558,28 @@
     } else {
       var sel = el('select', { class: 'sel' });
       ports.forEach(function (o) { sel.appendChild(el('option', { value: o.id, text: o.name })); });
-      sel.value = BW.midiOut.port() ? (ports.filter(function (o) { return o.port === BW.midiOut.port(); })[0] || ports[0]).id : ports[0].id;
+      sel.value = (ports.filter(function (o) { return o.port === BW.midiOut.port(); })[0] || ports[0]).id;
       sel.addEventListener('change', function () { setS('midiOutId', sel.value); });
       kids.push(opt(t('midiOutPort'), null, sel));
-      kids.push(el('div', { style: 'margin-top:10px' }, [el('button', { class: 'btn small primary', text: '♪ ' + t('midiOutTest'), onclick: function () {
-        msg.textContent = BW.midiOut.test() ? t('midiOutSentMsg') : t('midiOutNone');
-      } })]));
+      var chSel = el('select', { class: 'sel' });
+      chSel.appendChild(el('option', { value: '0', text: t('midiOutChAuto') }));
+      for (var c = 1; c <= 16; c++) chSel.appendChild(el('option', { value: String(c), text: t('midiOutCh') + ' ' + c }));
+      chSel.value = String(BW.settings.midiOutChannel || 0);
+      chSel.addEventListener('change', function () { setS('midiOutChannel', parseInt(chSel.value, 10)); });
+      kids.push(opt(t('midiOutChannel'), null, chSel));
+      kids.push(el('div', { style: 'margin-top:10px;display:flex;gap:8px;flex-wrap:wrap' }, [
+        el('button', { class: 'btn small primary', text: '♪ ' + t('midiOutTest'), onclick: function () {
+          var ok = BW.midiOut.test();
+          setTimeout(function () { msg.textContent = !ok ? t('midiOutNone') : BW.midiOut.lastError ? t('midiOutErr') + ' ' + BW.midiOut.lastError : t('midiOutSentMsg'); }, 300);
+        } }),
+        el('button', { class: 'btn small', text: t('midiOutTestAll'), onclick: function () {
+          var n = BW.midiOut.testAll(function (name, i) { msg.textContent = t('midiOutNowOn') + ' ' + (i + 1) + '/' + ports.length + ': ' + name; });
+          setTimeout(function () { msg.textContent = t('midiOutAllDone') + (BW.midiOut.lastError ? ' ' + t('midiOutErr') + ' ' + BW.midiOut.lastError : ''); }, n * 1400 + 200);
+        } })
+      ]));
       kids.push(msg);
+      var inf = BW.midiOut.info();
+      kids.push(el('div', { class: 'note', style: 'margin-top:8px;font-size:12px', text: t('midiOutInfo') + ' ' + inf.outputs.join(', ') + ' · ' + t('midiOutInfoIn') + ' ' + (inf.inputs.join(', ') || '–') + ' · ' + t('midiOutCh') + ' ' + inf.inChannel }));
       kids.push(opt(t('midiOutPlay'), t('midiOutPlaySub'), switchEl(!!BW.settings.midiOutPlay, function (v) { setS('midiOutPlay', v); })));
       kids.push(opt(t('midiOutShift'), t('midiOutShiftSub'), range('midiOutShiftMs', -200, 400, 5, null, function (v) { return v + ' ms'; })));
     }

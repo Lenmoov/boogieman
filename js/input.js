@@ -3,7 +3,7 @@
 window.BW = window.BW || {};
 (function (BW) {
   'use strict';
-  var listeners = [], statusListeners = [], curAccess = null;
+  var listeners = [], statusListeners = [], curAccess = null, inChannel = 0;
   var input = BW.input = {
     held: {},                     // midi -> true
     status: { state: 'init', names: [] },   // state: init | unsupported | denied | none | connected
@@ -29,6 +29,7 @@ window.BW = window.BW || {};
     /* raw MIDI bytes; also the entry point for a future native (CoreMIDI) bridge */
     midiMessage: function (status, d1, d2, timeMs) {
       var cmd = status & 0xf0;
+      if (cmd === 0x90 && d2 > 0) inChannel = status & 0x0f;
       // keyboards with MIDI thru/echo send our own output straight back: ignore those
       if ((cmd === 0x90 || cmd === 0x80) && BW.midiOut && BW.midiOut.isEcho(d1, cmd === 0x90 && d2 > 0)) return;
       if (cmd === 0x90 && d2 > 0) input.noteOn(d1, Math.pow(d2 / 127, 0.8), 'midi', timeMs);
@@ -71,10 +72,24 @@ window.BW = window.BW || {};
       var id = BW.settings.midiOutId, ps = out.ports;
       if (!ps.length) return null;
       for (var i = 0; i < ps.length; i++) if (ps[i].id === id) return ps[i].port;
-      return ps[0].port;                         // default: the first output (usually the same keyboard)
+      return out.guess().port;
     },
+    /* default output: the one named like the connected input, never a network/bluetooth session */
+    guess: function () {
+      var ps = out.ports, ins = (input.status.names || []).map(function (n) { return String(n).toLowerCase(); });
+      var real = ps.filter(function (o) { return !/network|session|netwerk|bluetooth|iac/i.test(o.name); });
+      var same = real.filter(function (o) { return ins.indexOf(String(o.name).toLowerCase()) >= 0; });
+      return same[0] || real[0] || ps[0];
+    },
+    channel: function () { var c = BW.settings.midiOutChannel; return c >= 1 && c <= 16 ? c - 1 : inChannel; },
     active: function () { return !!(BW.settings.midiOutPlay && out.port()); },
-    raw: function (bytes) { var p = out.port(); if (!p) return false; try { p.send(bytes); return true; } catch (e) { return false; } },
+    lastError: '',
+    raw: function (bytes, port) {
+      var p = port || out.port(); if (!p) return false;
+      if ((bytes[0] & 0xf0) !== 0xf0) bytes = [(bytes[0] & 0xf0) | out.channel()].concat(bytes.slice(1));
+      try { if (p.open && p.connection !== 'open') p.open(); p.send(bytes); return true; }
+      catch (e) { out.lastError = String(e && e.message || e); return false; }
+    },
     /* schedule a note at performance.now()-time onMs for durMs; dispatched by our own timer so it
        works even where send(data, timestamp) is not honoured */
     note: function (midi, vel, onMs, durMs) {
@@ -87,7 +102,7 @@ window.BW = window.BW || {};
       queue = []; if (qTimer) { clearInterval(qTimer); qTimer = null; }
       Object.keys(sounding).forEach(function (m) { out.raw([0x80, +m, 0]); });
       sounding = {};
-      out.raw([0xB0, 123, 0]);                   // all notes off (channel 1)
+      out.raw([0xB0, 123, 0]);                   // all notes off
     },
     isEcho: function (midi, isOn) {
       var t = sent[midi + (isOn ? 'on' : 'off')];
@@ -95,9 +110,26 @@ window.BW = window.BW || {};
     },
     test: function () {                         // C-E-G-C up, crushed third, C7 chord
       var t = performance.now() + 60, seq = [[60, 0], [64, 180], [67, 360], [72, 540], [63, 760], [64, 790], [55, 1000], [60, 1000], [64, 1000], [70, 1000]];
+      out.lastError = '';
       seq.forEach(function (x) { out.note(x[0], 0.75, t + x[1], x[1] >= 1000 ? 900 : (x[0] === 63 ? 30 : 170)); });
       return !!out.port();
-    }
+    },
+    /* play C-E-G on every output in turn, on channel 1 and on the keyboard's channel; cb(name, i) per port */
+    testAll: function (cb) {
+      out.lastError = '';
+      out.ports.forEach(function (o, i) {
+        setTimeout(function () {
+          if (cb) cb(o.name, i);
+          var chans = [0]; if (inChannel && chans.indexOf(inChannel) < 0) chans.push(inChannel);
+          [60, 64, 67].forEach(function (m, k) {
+            setTimeout(function () { chans.forEach(function (c) { try { if (o.port.open && o.port.connection !== 'open') o.port.open(); o.port.send([0x90 | c, m, 100]); } catch (e) { out.lastError = String(e && e.message || e); } }); }, k * 220);
+            setTimeout(function () { chans.forEach(function (c) { try { o.port.send([0x80 | c, m, 0]); } catch (e) { /* ignore */ } }); }, k * 220 + 200);
+          });
+        }, i * 1400);
+      });
+      return out.ports.length;
+    },
+    info: function () { return { outputs: out.ports.map(function (o) { return o.name; }), inputs: input.status.names, inChannel: inChannel + 1, sendChannel: out.channel() + 1 }; }
   };
   function pump() {
     var now = performance.now(), keep = [];
