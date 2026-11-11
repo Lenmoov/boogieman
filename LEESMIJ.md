@@ -73,6 +73,16 @@ klaar bij 80% van de onderdelen; de dagsessie op de startpagina haalt haar nieuw
 volgende module. Niets is op slot: je mag altijd vooruit of terug. De tijdsduur per module is een
 richtlijn bij ongeveer twintig minuten per dag. De indeling staat in `data/course.js`.
 
+## Timing meten (vertraging)
+
+Op een iPhone of iPad komt het geluid merkbaar later uit de luidspreker dan de app denkt, en de
+MIDI-browser voegt daar nog wat aan toe. Je speelt mee met wat je hoort, dus zonder correctie noemt
+de app je "te laat" of rekent hij noten fout. Tik daarom eenmalig per apparaat (en per luidspreker
+of koptelefoon) op **MIDI → Timing meten**: je speelt twaalf tikken mee en de app slaat de gemeten
+vertraging op. Dezelfde knop staat in het mengpaneel van het oefenscherm, en verschijnt bij een
+resultaat dat duidelijk te laat of fout is. Gebruik je het geluid van je eigen keyboard, zet dan
+"Laat mijn spel horen" uit; anders klinkt de iPad of telefoon dubbel en iets na.
+
 ## Leermethode
 
 - **Eerst horen, dan spelen:** elke lick is op vol tempo te beluisteren voordat je begint.

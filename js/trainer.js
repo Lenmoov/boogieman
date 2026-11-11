@@ -184,7 +184,7 @@ window.BW = window.BW || {};
     }
     return p;
   };
-  P._window = function (spu) { return BW.clamp(spu * 1.7, 0.065, 0.15); };
+  P._window = function (spu) { return BW.clamp(spu * 1.7, 0.065, 0.15) + Math.min(0.06, 2 * (BW.settings.jitterMs || 0) / 1000); };
 
   P._scorePass = function (p, optimistic) {
     var total = 0, hits = 0, sum = 0, abs = 0, now = this._heardNow();

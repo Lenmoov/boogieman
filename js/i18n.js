@@ -63,7 +63,7 @@ window.BW = window.BW || {};
     settingsTitle: ['Instellingen', 'Settings'], language: ['Taal', 'Language'],
     ladder: ['Tempo-ladder', 'Tempo ladder'], startPct: ['Starttempo', 'Start tempo'], stepPct: ['Stapgrootte', 'Step size'],
     cleanNeeded: ['Foutloze herhalingen per stap', 'Clean repetitions per step'],
-    latency: ['Timing-correctie', 'Timing offset'], latencySub: ['Verhoog als de app je steeds "te laat" noemt (bv. bluetooth-speaker)', 'Increase if the app always calls you "late" (e.g. Bluetooth speaker)'],
+    latency: ['Timing-correctie', 'Timing offset'], latencySub: ['Wordt ingesteld met Timing meten; handmatig verhogen als de app je steeds "te laat" noemt', 'Set by Measure timing; raise by hand if the app keeps calling you "late"'],
     midi: ['MIDI-keyboard', 'MIDI keyboard'],
     midiConnected: ['Verbonden', 'Connected'], midiNone: ['Web MIDI werkt, maar er is geen keyboard gevonden. Sluit het aan en tik op Opnieuw zoeken.', 'Web MIDI works, but no keyboard was found. Connect it and tap Search again.'],
     midiUnsupported: ['Deze browser ondersteunt geen Web MIDI (Safari op iPad doet dat niet). Je kunt het schermklavier gebruiken; voor je MIDI-keyboard is een browser met Web MIDI of een native wrapper nodig. Zie LEESMIJ.md.',
@@ -111,6 +111,8 @@ window.BW = window.BW || {};
     cRead: ['Lezen', 'Read'], cTask: ['Opdracht', 'Assignment'], cTaskSub: ['tik aan als je het gedaan hebt', 'tap when you have done it'],
     cImprov: ['vrij spelen op de band', 'free play with the band'], cReachLevel: ['bereik niveau', 'reach level'],
     cPractise: ['Oefen deze module', 'Practise this module'], cNextModule: ['Volgende module', 'Next module'],
+    calibrate: ['Timing meten (15 sec)', 'Measure timing (15 sec)'],
+    calibrateHint: ['Veel te laat of fout? Meet de timing van dit apparaat', 'Lots late or wrong? Measure this device\'s timing'],
     example: ['Voorbeeld', 'Example'], exercise: ['Oefening', 'Exercise']
   };
   BW.t = function (k) {

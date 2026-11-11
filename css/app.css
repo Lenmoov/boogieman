@@ -279,3 +279,12 @@ button.row { width: 100%; text-align: left; font: inherit; cursor: pointer; }
   .rail a { flex: 1 0 58px; min-width: 58px; }
   #app { max-width: 100vw; overflow-x: hidden; }
 }
+
+/* timing calibration */
+.calib-bg { align-items: center; justify-content: center; }
+.calib { width: 440px; }
+.calib-count { font-size: 44px; font-weight: 800; text-align: center; margin: 14px 0 8px; }
+.calib-dots { display: flex; gap: 6px; justify-content: center; }
+.calib-dots i { width: 14px; height: 14px; border-radius: 50%; background: rgba(255, 255, 255, .14); }
+.calib-dots i.on { background: var(--ok); }
+.warn-text { color: #ffd98a !important; margin-top: 8px; }

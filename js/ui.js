@@ -559,7 +559,8 @@
         el('div', { class: 'card' }, [el('h3', { html: '<i class="midi-dot ' + (BW.input.status.state === 'connected' ? 'on' : '') + '"></i> ' + t('midi') }), midiNote,
           el('div', { style: 'margin-top:12px' }, [el('button', { class: 'btn small', text: t('retry'), onclick: function () { BW.input.retry(); setTimeout(settingsView, 600); } })]),
           opt(t('userSound'), t('userSoundSub'), switchEl(BW.settings.userSound, function (v) { setS('userSound', v); })),
-          opt(t('latency'), t('latencySub'), range('latencyMs', -60, 200, 5, null, function (v) { return v + ' ms'; }))]),
+          opt(t('latency'), t('latencySub'), range('latencyMs', -100, 400, 5, null, function (v) { return v + ' ms'; })),
+          el('div', { style: 'margin-top:12px' }, [el('button', { class: 'btn small primary', text: t('calibrate'), onclick: function () { BW.calibrate(function () { setTimeout(settingsView, 1500); }); } })])]),
         el('div', { class: 'card' }, [el('h3', { text: t('ladder') })].concat(ladderOptions())),
         el('div', { class: 'card' }, [el('h3', { text: t('data') }),
           el('button', { class: 'btn small', text: t('reset'), onclick: function () { if (confirm(t('resetConfirm'))) { BW.progress = {}; BW.store.set('progress', {}); BW.store.set('streak', { day: '', count: 0 }); BW.store.set('last', null); toast('OK'); } } })]),
@@ -710,6 +711,9 @@
       for (var i = 0; i < r.needed; i++) dots += '<i class="' + (i < r.cleanStreak ? 'on' : '') + '"></i>';
       result.innerHTML = '<b class="' + cls + '">' + pct + '% ' + t('resAccuracy') + '</b>' + off + ' · ' + r.misses + ' ' + t('resMissed') + ' · ' + r.extras + ' ' + t('resExtra') +
         '<br>' + t('resClean') + ' <span class="streak-dots">' + dots + '</span>';
+      if (Math.abs(r.offsetMs) >= 50 || (pct < 60 && r.extras >= r.misses * 0.5 && r.extras > 2)) {
+        result.appendChild(el('button', { class: 'btn small', style: 'margin-top:8px', text: '⏱ ' + t('calibrateHint'), onclick: function () { trainer.stop(); BW.calibrate(); } }));
+      }
     }
     function onEvent(type, d) {
       if (type === 'state') { if (!d) countin.textContent = ''; sync(); }
@@ -793,7 +797,8 @@
         opt(t('volBass'), null, range('volBass', 0, 1, 0.05, mix)),
         el('h3', { text: t('ladder'), style: 'margin-top:16px' })
       ].concat(ladderOptions()).concat([
-        opt(t('latency'), t('latencySub'), range('latencyMs', -60, 200, 5, null, function (v) { return v + ' ms'; }))
+        opt(t('latency'), t('latencySub'), range('latencyMs', -100, 400, 5, null, function (v) { return v + ' ms'; })),
+        el('button', { class: 'btn small primary', style: 'margin-top:10px', text: t('calibrate'), onclick: function () { document.body.removeChild(bg); trainer.stop(); BW.calibrate(); } })
       ]));
       bg.appendChild(sheet);
       bg.addEventListener('click', function (e) { if (e.target === bg) { document.body.removeChild(bg); sync(); } });
