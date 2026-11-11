@@ -92,6 +92,10 @@ en bas blijven uit het apparaat komen. Klinkt het keyboard net voor of na de dru
 **MIDI-uit timing**. Stuurt je keyboard alles wat het ontvangt weer terug (MIDI thru), dan negeert de
 app die echo's.
 
+Klinken akkoorden via MIDI-uit als losse noten, gebruik dan **Akkoordtest** en kies de manier
+(A of B) waarbij je het hele akkoord hoort. Standaard is B: de noten gaan een paar milliseconden na
+elkaar de deur uit, wat met Web MIDI Browser op de iPhone het betrouwbaarst bleek.
+
 ## Leermethode
 
 - **Eerst horen, dan spelen:** elke lick is op vol tempo te beluisteren voordat je begint.
