@@ -92,9 +92,12 @@ en bas blijven uit het apparaat komen. Klinkt het keyboard net voor of na de dru
 **MIDI-uit timing**. Stuurt je keyboard alles wat het ontvangt weer terug (MIDI thru), dan negeert de
 app die echo's.
 
-Klinken akkoorden via MIDI-uit als losse noten, gebruik dan **Akkoordtest** en kies de manier
-(A of B) waarbij je het hele akkoord hoort. Standaard is B: de noten gaan een paar milliseconden na
-elkaar de deur uit, wat met Web MIDI Browser op de iPhone het betrouwbaarst bleek.
+Hoe de app MIDI verstuurt (en waarom): elk bericht gaat apart en een paar milliseconden na het vorige
+de deur uit, omdat MIDI-browsers op iOS berichten kwijtraken die samen of tegelijk komen. Een
+noot-uit beëindigt alleen de noot waar hij bij hoort, zodat een herhaalde noot niet door de vorige
+wordt afgekapt; noot-uit wordt geschreven zoals je keyboard het zelf doet. Bij stoppen krijgt elke
+klinkende noot een noot-uit. Met **Akkoordtest** kies je de tussenruimte (2, 5 of 10 ms): hoe kleiner,
+hoe strakker de akkoorden, maar alleen als je keyboard dan nog alles netjes hoort en stopt.
 
 ## Leermethode
 

@@ -582,9 +582,9 @@
       kids.push(el('div', { style: 'margin-top:12px' }, [el('div', { class: 'note', text: t('midiOutPolySub') }),
         el('div', { style: 'margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;align-items:center' }, [
           el('button', { class: 'btn small', text: t('midiOutPolyTest'), onclick: function () {
-            BW.midiOut.chordTest(function (k) { polyMsg.textContent = k ? t('midiOutPolyNow') + ' ' + k : t('midiOutPolyAsk'); });
+            BW.midiOut.chordTest(function (k) { polyMsg.textContent = k ? t('midiOutPoly_' + k) : t('midiOutPolyAsk'); });
           } }),
-          segEl([['batch', 'A'], ['spread', 'B']], BW.settings.midiOutMode || 'spread', function (v) { setS('midiOutMode', v); })
+          segEl([[2, '2 ms'], [5, '5 ms'], [10, '10 ms']], [2, 5, 10].indexOf(+BW.settings.midiOutGap) >= 0 ? +BW.settings.midiOutGap : 5, function (v) { setS('midiOutGap', v); })
         ]), polyMsg]));
       var inf = BW.midiOut.info();
       kids.push(el('div', { class: 'note', style: 'margin-top:8px;font-size:12px', text: t('midiOutInfo') + ' ' + inf.outputs.join(', ') + ' · ' + t('midiOutInfoIn') + ' ' + (inf.inputs.join(', ') || '–') + ' · ' + t('midiOutCh') + ' ' + inf.inChannel }));

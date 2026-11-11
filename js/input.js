@@ -3,7 +3,7 @@
 window.BW = window.BW || {};
 (function (BW) {
   'use strict';
-  var listeners = [], statusListeners = [], curAccess = null, inChannel = 0;
+  var listeners = [], statusListeners = [], curAccess = null, inChannel = 0, offStyle = 0x90;
   var input = BW.input = {
     held: {},                     // midi -> true
     status: { state: 'init', names: [] },   // state: init | unsupported | denied | none | connected
@@ -30,6 +30,7 @@ window.BW = window.BW || {};
     midiMessage: function (status, d1, d2, timeMs) {
       var cmd = status & 0xf0;
       if (cmd === 0x90 && d2 > 0) inChannel = status & 0x0f;
+      if (cmd === 0x80) offStyle = 0x80; else if (cmd === 0x90 && d2 === 0) offStyle = 0x90;
       // keyboards with MIDI thru/echo send our own output straight back: ignore those
       if ((cmd === 0x90 || cmd === 0x80) && BW.midiOut && BW.midiOut.isEcho(d1, cmd === 0x90 && d2 > 0)) return;
       if (cmd === 0x90 && d2 > 0) input.noteOn(d1, Math.pow(d2 / 127, 0.8), 'midi', timeMs);
@@ -64,8 +65,72 @@ window.BW = window.BW || {};
     },
     retry: function () { input.init(); }
   };
-  /* ---------- MIDI out: let the app play on the user's own keyboard ---------- */
-  var queue = [], qTimer = null, sounding = {}, sent = {};
+  /* ---------- MIDI out: let the app play on the user's own keyboard ----------
+     Rules learned the hard way with iOS MIDI browsers (Web MIDI Browser):
+     - exactly ONE MIDI message per send(); several messages in one send() lose all but the first
+     - messages sent in the same instant can get lost: every send() is paced a few ms apart
+     - a note-off may only end the note-on it belongs to (tokens), otherwise a repeated note that
+       overlaps its predecessor gets cut off by the predecessor's late note-off
+     - note-off is written the way the keyboard itself writes it (9n vel 0 or 8n), default 9n vel 0
+     - note-ons go out before plain note-offs that are due at the same moment, so chords stay tight */
+  var events = [], evTimer = null, outbox = [], lowbox = [], pacing = false, lastSend = 0, sounding = {}, sent = {}, tok = 0;
+  var mc = window.MessageChannel ? new MessageChannel() : null;
+  function gapMs() { var g = +BW.settings.midiOutGap; return g >= 0 && g <= 20 ? g : 5; }
+  function kick() {
+    if (pacing) return;
+    pacing = true;
+    pace();
+  }
+  function pace() {
+    var now = performance.now(), wait = gapMs() - (now - lastSend);
+    if ((outbox.length || lowbox.length) && wait <= 0) {
+      var m = outbox.length ? outbox.shift() : lowbox.shift();   // note-ons first, plain note-offs when there is room
+      sendNow(m.b, m.port);
+      lastSend = performance.now();
+      wait = gapMs();
+    }
+    if (!outbox.length && !lowbox.length) { pacing = false; return; }
+    if (wait >= 4 || !mc) setTimeout(pace, Math.max(1, wait - 1));
+    else mc.port2.postMessage(0);               // short waits: spin without the 4 ms timer clamp
+  }
+  if (mc) mc.port1.onmessage = pace;
+  function sendNow(bytes, port) {
+    var p = port || out.port(); if (!p) return;
+    try { if (p.open && p.connection !== 'open') p.open(); p.send(bytes); }
+    catch (e) { out.lastError = String(e && e.message || e); }
+    var c = bytes[0] & 0xf0;
+    if (c === 0x90 || c === 0x80) sent[bytes[1] + ((c === 0x90 && bytes[2] > 0) ? 'on' : 'off')] = performance.now();
+  }
+  function msgOn(m, v) { return [0x90 | out.channel(), m, v]; }
+  function msgOff(m) { return offStyle === 0x80 ? [0x80 | out.channel(), m, 64] : [0x90 | out.channel(), m, 0]; }
+  function enqueue(bytes, port, low) { (low ? lowbox : outbox).push({ b: bytes, port: port }); kick(); }
+  function isOffFor(x, m) { var c = x.b[0] & 0xf0; return x.b[1] === m && (c === 0x80 || (c === 0x90 && x.b[2] === 0)); }
+  function schedule() {
+    var now = performance.now(), ons = [], offs = [];
+    events.sort(function (x, y) { return x.at - y.at; });
+    while (events.length && events[0].at <= now) {
+      var e = events.shift();
+      if (e.on) {
+        if (sounding[e.m] != null) ons.push(msgOff(e.m));       // re-strike: end the old note first
+        sounding[e.m] = e.tok;
+        ons.push(msgOn(e.m, e.v));
+      } else if (sounding[e.m] === e.tok) {                      // only end our own note
+        delete sounding[e.m];
+        offs.push(msgOff(e.m));
+      }
+    }
+    ons.forEach(function (b) {
+      // a plain note-off for this key still waiting in the slow lane must go out before the new note-on
+      var c = b[0] & 0xf0;
+      if (c === 0x90 && b[2] > 0 && lowbox.some(function (x) { return isOffFor(x, b[1]); })) {
+        lowbox = lowbox.filter(function (x) { return !isOffFor(x, b[1]); });
+        enqueue(msgOff(b[1]));
+      }
+      enqueue(b);
+    });
+    offs.forEach(function (b) { enqueue(b, null, true); });
+    if (!events.length && evTimer) { clearInterval(evTimer); evTimer = null; }
+  }
   var out = BW.midiOut = {
     ports: [],
     port: function () {
@@ -84,50 +149,44 @@ window.BW = window.BW || {};
     channel: function () { var c = BW.settings.midiOutChannel; return c >= 1 && c <= 16 ? c - 1 : inChannel; },
     active: function () { return !!(BW.settings.midiOutPlay && out.port()); },
     lastError: '',
-    raw: function (bytes, port) {
-      var p = port || out.port(); if (!p) return false;
-      if ((bytes[0] & 0xf0) !== 0xf0) bytes = [(bytes[0] & 0xf0) | out.channel()].concat(bytes.slice(1));
-      try { if (p.open && p.connection !== 'open') p.open(); p.send(bytes); return true; }
-      catch (e) { out.lastError = String(e && e.message || e); return false; }
-    },
-    /* schedule a note at performance.now()-time onMs for durMs; dispatched by our own timer so it
-       works even where send(data, timestamp) is not honoured */
+    raw: function (bytes) { if (!out.port()) return false; enqueue(bytes); return true; },
+    /* a note at performance.now()-time onMs, lasting durMs */
     note: function (midi, vel, onMs, durMs) {
-      queue.push({ at: onMs, b: [0x90, midi, BW.clamp(Math.round(vel * 127), 1, 127)], m: midi, on: true });
-      queue.push({ at: onMs + Math.max(30, durMs), b: [0x80, midi, 0], m: midi, on: false });
-      if (!qTimer) qTimer = setInterval(function () { pump(); }, 4);
-      pump();
+      var k = ++tok;
+      events.push({ at: onMs, on: true, m: midi, v: BW.clamp(Math.round(vel * 127), 1, 127), tok: k });
+      events.push({ at: onMs + Math.max(30, durMs), on: false, m: midi, tok: k });
+      if (!evTimer) evTimer = setInterval(schedule, 4);
+      schedule();
     },
     allOff: function () {
-      queue = []; if (qTimer) { clearInterval(qTimer); qTimer = null; }
-      Object.keys(sounding).forEach(function (m) { out.raw([0x80, +m, 0]); });
+      events = []; if (evTimer) { clearInterval(evTimer); evTimer = null; }
+      outbox = outbox.filter(function (x) { var c = x.b[0] & 0xf0; return !(c === 0x90 && x.b[2] > 0); });   // drop pending note-ons
+      outbox = outbox.concat(lowbox); lowbox = [];          // waiting note-offs must still go out
+      Object.keys(sounding).forEach(function (m) { enqueue(msgOff(+m)); });
       sounding = {};
-      out.raw([0xB0, 123, 0]);                   // all notes off
+      if (out.port()) enqueue([0xB0 | out.channel(), 64, 0]);    // sustain off (we never press it, but be safe)
     },
     isEcho: function (midi, isOn) {
       var t = sent[midi + (isOn ? 'on' : 'off')];
       return t != null && performance.now() - t < 60;
     },
+    pending: function () { return { events: events.length, outbox: outbox.length + lowbox.length, sounding: Object.keys(sounding).length }; },
     test: function () {                         // C-E-G-C up, crushed third, C7 chord
       var t = performance.now() + 60, seq = [[60, 0], [64, 180], [67, 360], [72, 540], [63, 760], [64, 790], [55, 1000], [60, 1000], [64, 1000], [70, 1000]];
       out.lastError = '';
       seq.forEach(function (x) { out.note(x[0], 0.75, t + x[1], x[1] >= 1000 ? 900 : (x[0] === 63 ? 30 : 170)); });
       return !!out.port();
     },
-    /* chord C-E-G-Bb-C sent twice: A in one packet, B spread out; cb('A'|'B') */
+    /* stress test with the current spacing: a held five-note chord, then eight short repeated
+       chords (re-strikes) and a fast repeated note, all of which must start and stop cleanly */
     chordTest: function (cb) {
-      var p = out.port(); if (!p) return false;
-      var notes = [48, 52, 55, 58, 60];
-      function play(mode) {
-        var on = [], off = [];
-        notes.forEach(function (m) { on.push(chan([0x90, m, 96])); off.push(chan([0x80, m, 0])); });
-        if (mode === 'batch') { p.send([].concat.apply([], on)); setTimeout(function () { p.send([].concat.apply([], off)); }, 900); }
-        else on.forEach(function (b, i) { setTimeout(function () { p.send(b); }, i * 6); setTimeout(function () { p.send(off[i]); }, 900 + i * 6); });
-      }
-      try { if (p.open && p.connection !== 'open') p.open(); } catch (e) { /* ignore */ }
-      if (cb) cb('A'); play('batch');
-      setTimeout(function () { if (cb) cb('B'); play('spread'); }, 1600);
-      setTimeout(function () { if (cb) cb(''); }, 2700);
+      if (!out.port()) return false;
+      out.lastError = '';
+      var t = performance.now() + 60, c7 = [48, 52, 55, 58, 60], stab = [64, 67, 70, 72];
+      c7.forEach(function (m) { out.note(m, 0.75, t, 900); });
+      for (var i = 0; i < 8; i++) stab.forEach(function (m) { out.note(m, 0.7, t + 1100 + i * 160, 90); });
+      for (var j = 0; j < 8; j++) out.note(60, 0.7, t + 2500 + j * 110, 80);
+      if (cb) { cb('chord'); setTimeout(function () { cb('stabs'); }, 1160); setTimeout(function () { cb('repeat'); }, 2560); setTimeout(function () { cb(''); }, 3600); }
       return true;
     },
     /* play C-E-G on every output in turn, on channel 1 and on the keyboard's channel; cb(name, i) per port */
@@ -138,40 +197,17 @@ window.BW = window.BW || {};
           if (cb) cb(o.name, i);
           var chans = [0]; if (inChannel && chans.indexOf(inChannel) < 0) chans.push(inChannel);
           [60, 64, 67].forEach(function (m, k) {
-            setTimeout(function () { chans.forEach(function (c) { try { if (o.port.open && o.port.connection !== 'open') o.port.open(); o.port.send([0x90 | c, m, 100]); } catch (e) { out.lastError = String(e && e.message || e); } }); }, k * 220);
-            setTimeout(function () { chans.forEach(function (c) { try { o.port.send([0x80 | c, m, 0]); } catch (e) { /* ignore */ } }); }, k * 220 + 200);
+            chans.forEach(function (c, ci) {
+              setTimeout(function () { enqueue([0x90 | c, m, 100], o.port); }, k * 220 + ci * 10);
+              setTimeout(function () { enqueue([0x90 | c, m, 0], o.port); }, k * 220 + 200 + ci * 10);
+            });
           });
         }, i * 1400);
       });
       return out.ports.length;
     },
-    info: function () { return { outputs: out.ports.map(function (o) { return o.name; }), inputs: input.status.names, inChannel: inChannel + 1, sendChannel: out.channel() + 1 }; }
+    info: function () { return { outputs: out.ports.map(function (o) { return o.name; }), inputs: input.status.names, inChannel: inChannel + 1, sendChannel: out.channel() + 1, offStyle: offStyle === 0x80 ? '8n' : '9n v0' }; }
   };
-  /* Some iOS MIDI browsers lose messages when several are sent in the same instant (a chord then
-     sounds as one note). Two delivery modes:
-       batch  - everything that is due goes out in ONE send() (several MIDI messages in one packet)
-       spread - one message per timer tick (about 4 ms apart), each in its own send() */
-  function chan(b) { return (b[0] & 0xf0) === 0xf0 ? b : [(b[0] & 0xf0) | out.channel()].concat(b.slice(1)); }
-  function pump(forceMode) {
-    var now = performance.now(), mode = forceMode || BW.settings.midiOutMode || 'spread', bytes = [], n = 0;
-    queue.sort(function (a, b) { return a.at - b.at || (a.on ? 1 : 0) - (b.on ? 1 : 0); });   // note-offs first
-    while (queue.length && queue[0].at <= now) {
-      var q = queue.shift(), msgs = [];
-      if (q.on) { if (sounding[q.m]) msgs.push([0x80, q.m, 0]); sounding[q.m] = 1; }
-      else if (!sounding[q.m]) continue;
-      else delete sounding[q.m];
-      msgs.push(q.b);
-      sent[q.m + (q.on ? 'on' : 'off')] = now;
-      msgs.forEach(function (m) { bytes = bytes.concat(chan(m)); });
-      n++;
-      if (mode === 'spread') break;
-    }
-    if (bytes.length) {
-      var p = q && q.port || out.port();
-      try { if (p.open && p.connection !== 'open') p.open(); p.send(bytes); } catch (e) { out.lastError = String(e && e.message || e); }
-    }
-    if (!queue.length && qTimer) { clearInterval(qTimer); qTimer = null; }
-  }
 
   function setStatus(state, names) {
     input.status = { state: state, names: names };
