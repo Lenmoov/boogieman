@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Boogie Woogie Studio</title>
+<meta name="theme-color" content="#071426">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Boogie Studio">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<div id="app"></div>
+<div id="toasts"></div>
+<script src="js/core.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/input.js"></script>
+<script src="js/score.js"></script>
+<script src="js/roll.js"></script>
+<script src="js/trainer.js"></script>
+<script src="data/patterns.js"></script>
+<script src="data/licks-1.js"></script>
+<script src="data/licks-2.js"></script>
+<script src="data/licks-3.js"></script>
+<script src="data/licks-4.js"></script>
+<script src="data/licks-5.js"></script>
+<script src="data/licks-6.js"></script>
+<script src="data/licks-7.js"></script>
+<script src="data/course.js"></script>
+<script src="data/articles.js"></script>
+<script src="js/i18n.js"></script>
+<script src="js/ear.js"></script>
+<script src="js/ui.js"></script>
+<script>
+if ('serviceWorker' in navigator && location.protocol === 'https:') {
+  navigator.serviceWorker.register('sw.js').catch(function () {});
+}
+</script>
+</body>
+</html>
