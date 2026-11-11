@@ -95,7 +95,7 @@ window.BW = window.BW || {};
     note: function (midi, vel, onMs, durMs) {
       queue.push({ at: onMs, b: [0x90, midi, BW.clamp(Math.round(vel * 127), 1, 127)], m: midi, on: true });
       queue.push({ at: onMs + Math.max(30, durMs), b: [0x80, midi, 0], m: midi, on: false });
-      if (!qTimer) qTimer = setInterval(pump, 4);
+      if (!qTimer) qTimer = setInterval(function () { pump(); }, 4);
       pump();
     },
     allOff: function () {
@@ -114,6 +114,22 @@ window.BW = window.BW || {};
       seq.forEach(function (x) { out.note(x[0], 0.75, t + x[1], x[1] >= 1000 ? 900 : (x[0] === 63 ? 30 : 170)); });
       return !!out.port();
     },
+    /* chord C-E-G-Bb-C sent twice: A in one packet, B spread out; cb('A'|'B') */
+    chordTest: function (cb) {
+      var p = out.port(); if (!p) return false;
+      var notes = [48, 52, 55, 58, 60];
+      function play(mode) {
+        var on = [], off = [];
+        notes.forEach(function (m) { on.push(chan([0x90, m, 96])); off.push(chan([0x80, m, 0])); });
+        if (mode === 'batch') { p.send([].concat.apply([], on)); setTimeout(function () { p.send([].concat.apply([], off)); }, 900); }
+        else on.forEach(function (b, i) { setTimeout(function () { p.send(b); }, i * 6); setTimeout(function () { p.send(off[i]); }, 900 + i * 6); });
+      }
+      try { if (p.open && p.connection !== 'open') p.open(); } catch (e) { /* ignore */ }
+      if (cb) cb('A'); play('batch');
+      setTimeout(function () { if (cb) cb('B'); play('spread'); }, 1600);
+      setTimeout(function () { if (cb) cb(''); }, 2700);
+      return true;
+    },
     /* play C-E-G on every output in turn, on channel 1 and on the keyboard's channel; cb(name, i) per port */
     testAll: function (cb) {
       out.lastError = '';
@@ -131,18 +147,29 @@ window.BW = window.BW || {};
     },
     info: function () { return { outputs: out.ports.map(function (o) { return o.name; }), inputs: input.status.names, inChannel: inChannel + 1, sendChannel: out.channel() + 1 }; }
   };
-  function pump() {
-    var now = performance.now(), keep = [];
-    queue.sort(function (a, b) { return a.at - b.at; });
-    for (var i = 0; i < queue.length; i++) {
-      var q = queue[i];
-      if (q.at > now) { keep = queue.slice(i); break; }
-      if (q.on) { if (sounding[q.m]) out.raw([0x80, q.m, 0]); sounding[q.m] = 1; }
-      else { if (!sounding[q.m]) continue; delete sounding[q.m]; }
-      sent[q.m + (q.on ? 'on' : 'off')] = performance.now();
-      out.raw(q.b);
+  /* Some iOS MIDI browsers lose messages when several are sent in the same instant (a chord then
+     sounds as one note). Two delivery modes:
+       batch  - everything that is due goes out in ONE send() (several MIDI messages in one packet)
+       spread - one message per timer tick (about 4 ms apart), each in its own send() */
+  function chan(b) { return (b[0] & 0xf0) === 0xf0 ? b : [(b[0] & 0xf0) | out.channel()].concat(b.slice(1)); }
+  function pump(forceMode) {
+    var now = performance.now(), mode = forceMode || BW.settings.midiOutMode || 'batch', bytes = [], n = 0;
+    queue.sort(function (a, b) { return a.at - b.at || (a.on ? 1 : 0) - (b.on ? 1 : 0); });   // note-offs first
+    while (queue.length && queue[0].at <= now) {
+      var q = queue.shift(), msgs = [];
+      if (q.on) { if (sounding[q.m]) msgs.push([0x80, q.m, 0]); sounding[q.m] = 1; }
+      else if (!sounding[q.m]) continue;
+      else delete sounding[q.m];
+      msgs.push(q.b);
+      sent[q.m + (q.on ? 'on' : 'off')] = now;
+      msgs.forEach(function (m) { bytes = bytes.concat(chan(m)); });
+      n++;
+      if (mode === 'spread') break;
     }
-    queue = keep;
+    if (bytes.length) {
+      var p = q && q.port || out.port();
+      try { if (p.open && p.connection !== 'open') p.open(); p.send(bytes); } catch (e) { out.lastError = String(e && e.message || e); }
+    }
     if (!queue.length && qTimer) { clearInterval(qTimer); qTimer = null; }
   }
 

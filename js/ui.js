@@ -578,6 +578,14 @@
         } })
       ]));
       kids.push(msg);
+      var polyMsg = el('div', { class: 'note', style: 'margin-top:6px' });
+      kids.push(el('div', { style: 'margin-top:12px' }, [el('div', { class: 'note', text: t('midiOutPolySub') }),
+        el('div', { style: 'margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;align-items:center' }, [
+          el('button', { class: 'btn small', text: t('midiOutPolyTest'), onclick: function () {
+            BW.midiOut.chordTest(function (k) { polyMsg.textContent = k ? t('midiOutPolyNow') + ' ' + k : t('midiOutPolyAsk'); });
+          } }),
+          segEl([['batch', 'A'], ['spread', 'B']], BW.settings.midiOutMode || 'batch', function (v) { setS('midiOutMode', v); })
+        ]), polyMsg]));
       var inf = BW.midiOut.info();
       kids.push(el('div', { class: 'note', style: 'margin-top:8px;font-size:12px', text: t('midiOutInfo') + ' ' + inf.outputs.join(', ') + ' · ' + t('midiOutInfoIn') + ' ' + (inf.inputs.join(', ') || '–') + ' · ' + t('midiOutCh') + ' ' + inf.inChannel }));
       kids.push(opt(t('midiOutPlay'), t('midiOutPlaySub'), switchEl(!!BW.settings.midiOutPlay, function (v) { setS('midiOutPlay', v); })));
